@@ -1,4 +1,5 @@
 import fsp from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
@@ -78,9 +79,24 @@ async function writeState(next) {
   return state
 }
 
-/** Hand a `harness://…` deep link to the OS. `open` gets an argument list, never a shell string. */
+/**
+ * Hand a `harness://…` deep link (or a folder path for reveal) to the OS.
+ * The launcher gets an argument list, never a shell string. macOS uses
+ * `open(1)`, Linux uses `xdg-open`. A missing launcher — a headless box has
+ * no `xdg-open` — fails silently: there is nothing the page could do with
+ * the error, and the scan path must never depend on presentation.
+ */
+function opener() {
+  if (process.platform === 'darwin') return 'open'
+  if (process.platform === 'linux') return 'xdg-open'
+  return null
+}
+
 function launch(url) {
-  const child = spawn('open', [url], { stdio: 'ignore', detached: true })
+  const cmd = opener()
+  if (!cmd) return
+  const child = spawn(cmd, [url], { stdio: 'ignore', detached: true })
+  child.on('error', () => {})
   child.unref()
 }
 
@@ -138,6 +154,16 @@ function send(res, status, body) {
 }
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1'])
+
+// The machine's own LAN addresses count as local too, so the colony can be
+// served to the home network with BOT_CROSSING_HOST set. Harmless when bound
+// to loopback (those hosts can't reach the server anyway), and the Host +
+// Origin pairing still stops DNS rebinding and CSRF exactly as before.
+for (const addrs of Object.values(os.networkInterfaces())) {
+  for (const a of addrs || []) {
+    if (a && a.family === 'IPv4' && !a.internal && a.address) LOCAL_HOSTS.add(a.address)
+  }
+}
 
 /** Hostname out of a `Host:` or `Origin:` value, with the port and any brackets stripped. */
 function hostnameOf(value) {
