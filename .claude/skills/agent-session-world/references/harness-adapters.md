@@ -21,10 +21,14 @@ export default {
   /** → Thread[] in the common shape below. */
   async scanThreads(),
 
-  /** Hand a thread back to its harness. → { ok, url } | { ok: false, error } */
+  /**
+   * Hand a thread back to its harness. → { ok, url, command? } | { ok: false, error }
+   * `command` is the same action as a terminal argv, for a machine where nothing answers
+   * the URL's scheme (a Linux box with only the CLI). May return a Promise.
+   */
   openThread(ref),
 
-  /** Start a fresh thread rooted at a folder. → { ok, url } */
+  /** Start a fresh thread rooted at a folder. → { ok, url, command? }, likewise. */
   newSession(dir),
 
   /** Flip archive state on the harness's own records. → { ok } */

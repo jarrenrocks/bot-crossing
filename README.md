@@ -2,7 +2,7 @@
 
 **[botcrossing.com](https://botcrossing.com)**
 
-Every coding-agent thread on this Mac is a little astronaut. They walk out of the ship, claim
+Every coding-agent thread on this machine is a little astronaut. They walk out of the ship, claim
 a plot for their repo, and build something. When one needs you it stops and holds a `?` over
 its head; click it and the thread opens back in whichever harness it came from.
 
@@ -26,9 +26,16 @@ second process. For a built version, `npm start` (build + serve) or `npm run ser
 
 **macOS, Linux and Windows.** Opening a thread, revealing a folder and starting a new session
 all go through a `harness://` deep link handed to the OS opener — `open(1)` on macOS,
-`xdg-open` on Linux, ShellExecute on Windows. The scanning half was portable already. Note that
-the deep link needs a desktop app registered for that scheme, so on Linux the folder buttons
-work while opening a thread has nothing to reach yet.
+`xdg-open` on Linux, ShellExecute on Windows. The scanning half was portable already.
+
+On Linux the desktop app is optional. If nothing is registered for `claude://` — the server
+asks `xdg-mime` — opening a thread instead runs the CLI in a new terminal window, in the
+folder the session ran in: `claude --resume <id>`, or a bare `claude` for a new conversation.
+The terminal is `$TERMINAL` if you set one (and it is one the table in `server/lib/xdg.mjs`
+knows), otherwise one that ships with your desktop, otherwise whatever is installed, with
+Debian's `x-terminal-emulator` as the last resort; `--` and the working directory are passed
+the way each one expects. A launch the terminal refuses outright — no display, say — comes
+back as an error rather than a toast that says it opened.
 
 ## Which harnesses work
 
@@ -176,10 +183,11 @@ into the same repo. Picking somebody is also picking the zone they are standing 
 **The repo**, at the top, whether or not anybody is selected:
 
 - **New conversation** (`C`) starts a fresh thread in that folder. It is the same
-  `claude://code/new?folder=…` deep link Finder's "New Claude Code Session Here" quick
-  action uses, so the desktop app opens an empty session with the repo as its workspace —
-  nothing is resumed and nothing is written.
-- **Finder** (Explorer on Windows) opens the folder, **Copy path** copies it.
+  `claude://code/new?folder=…` deep link the desktop app's "New Claude Code Session Here"
+  action uses (a Finder quick action on macOS), so the app opens an empty session with the
+  repo as its workspace — nothing is resumed and nothing is written. Without the app, it is
+  the bare CLI in a terminal, in that folder.
+- **Finder** (Explorer on Windows, Files on Linux) opens the folder, **Copy path** copies it.
 - Underneath, everything running in that repo, whoever wants something first. Clicking one
   flies to its astronaut and selects it.
 
@@ -191,7 +199,8 @@ flipping to its left rather than sliding under the sidebar, and never leaving th
 It is moved with a transform rather than with `left`/`top`, the one geometric change a
 browser makes without touching layout, so following a walking astronaut costs nothing.
 
-- **Open** hands the thread back to Claude Code and the desktop app comes forward.
+- **Open** hands the thread back to Claude Code and the desktop app comes forward — or, on a
+  Linux box without the app, a terminal opens with the CLI resuming it.
 - **Archive** sets `isArchived` on Claude Code's own session record — the thread lands in
   Claude Code's Archived list, not just here — and the astronaut walks back up the ramp and
   boards the ship.
@@ -212,7 +221,7 @@ stomp the flag, so the colony re-asserts it on every scan — an archive that ge
 back within one poll.
 
 Nothing is ever written to your Claude Code data except that one `isArchived` field. The
-folder buttons only ever hand a path to `open`.
+folder buttons only ever hand a path to the OS opener.
 
 The deep links above are the **Claude Code adapter's** business, not the colony's — another
 harness plugs its own in, and a harness with no deep link simply greys the button out. See
@@ -257,7 +266,7 @@ under **View → Return to isometric**.
 
 | Key | Does |
 | --- | --- |
-| `H` / `⌘\` | **Hide every panel.** The colony still reads: status lives above the astronauts' heads |
+| `H` / `⌘\` or `Ctrl+\` | **Hide every panel.** The colony still reads: status lives above the astronauts' heads |
 | `S` | Settings |
 | `N` | Fly to the next astronaut waiting on you |
 | `Enter` / `A` | Open / archive the selected thread |
@@ -565,7 +574,7 @@ more interesting target than a localhost toy usually is. Three things hold it in
   `Host: their-domain`, and are refused.
 - **It checks `Origin`.** A cross-site `fetch` with a `text/plain` body is not preflighted, so
   without this any page you happened to have open could POST here — spawning sessions, opening
-  Finder windows, or overwriting the colony layout — even while unable to read the response.
+  file-manager windows, or overwriting the colony layout — even while unable to read the response.
   Requests from anywhere but this server's own page are refused.
 
 The practical cost: a bare `curl` POST is refused too, since browsers always send `Origin` on

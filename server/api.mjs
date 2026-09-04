@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { openInTerminal, schemeHasHandler, schemeOf } from './lib/xdg.mjs'
 import {
   defaultHarness,
   harnessAppStartedAt,
@@ -113,6 +114,58 @@ function launch(target) {
 }
 
 /**
+ * Show a harness's answer to "open this" — `{ ok, url, command }` — to the user, and say
+ * truthfully whether anything happened.
+ *
+ * macOS and Windows hand the URL to the opener exactly as before: a scheme the harness's app
+ * registers is always answered there, so nothing is probed. Linux is the platform where the
+ * URL may have nowhere to go — the desktop app is optional and often absent, and `xdg-open`
+ * on a scheme nobody claims exits quietly, which used to reach the page as "Opened". So here
+ * the scheme is checked first; failing that, the harness's own CLI is run in a terminal, from
+ * the `command` the adapter offered alongside the URL; failing *that*, the page is told so.
+ *
+ * `command.cwd` came from the page — inside `ref`, or as the folder itself — so it gets the
+ * same check as any other folder the page names, even where the handler above already ran it.
+ * There is no fallback directory on purpose: `claude --resume` looks a session up under the
+ * folder it ran in, and a terminal that opens on "No conversation found" and closes is worse
+ * than an error toast. A harness that offers only a command gets an error on the platforms
+ * that have no terminal path yet, for the same reason.
+ */
+async function present(result) {
+  // Only the reason goes to the page: an adapter's failure may still carry its command.
+  if (!result || !result.ok) return { ok: false, error: result?.error || 'Nothing to open' }
+
+  if (process.platform !== 'linux') {
+    if (!result.url) return { ok: false, error: 'That harness has no deep link to open on this platform' }
+    launch(result.url)
+    return { ok: true, url: result.url }
+  }
+
+  if (result.url && (await schemeHasHandler(result.url))) {
+    launch(result.url)
+    return { ok: true, url: result.url }
+  }
+  if (result.command) {
+    // Usually a page that predates this server, still holding refs without a cwd.
+    if (!result.command.cwd) return { ok: false, error: 'That thread has no folder on record to resume in' }
+    const cwd = await resolveFolder(result.command.cwd)
+    if (!cwd) return { ok: false, error: 'The folder that thread ran in is not on this machine any more' }
+    // A folder that exists but cannot be entered fails inside every terminal alike, and the
+    // terminal would get the blame; say what is actually wrong instead.
+    const enterable = await fsp.access(cwd, fsp.constants.X_OK).then(() => true, () => false)
+    if (!enterable) return { ok: false, error: 'The folder that thread ran in cannot be entered' }
+    return openInTerminal(result.command.argv, cwd)
+  }
+  const scheme = schemeOf(result.url)
+  return {
+    ok: false,
+    error: scheme
+      ? `Nothing on this machine opens ${scheme}:// links, and there is no CLI command to run instead`
+      : 'Nothing on this machine can open that',
+  }
+}
+
+/**
  * A folder is openable only if it is still on this machine and still a directory. Paths
  * arrive from the page, which got them from a scan that may be minutes old — a repo that
  * has since been moved or deleted must fail here rather than hand the opener a dead path.
@@ -199,7 +252,7 @@ function hostnameOf(value) {
  *     can then read every response. The rebound request still carries `Host: evil.com`.
  *   - **Origin** stops CSRF. A cross-site `fetch` with a `text/plain` body is not
  *     preflighted, so without this check any page you happened to be visiting could POST
- *     here — spawning sessions, opening Finder windows, or wiping the colony layout —
+ *     here — spawning sessions, opening file-manager windows, or wiping the colony layout —
  *     even though it could never read the reply.
  *
  * A state-changing request with no `Origin` at all is refused: browsers always send one on
@@ -267,9 +320,8 @@ export async function apiMiddleware(req, res, next) {
 
     if (url.pathname === '/api/open' && req.method === 'POST') {
       const { harness, ref } = await readJsonBody(req)
-      const result = harnessOpenThread(harness, ref)
-      if (result.ok) launch(result.url)
-      return send(res, result.ok ? 200 : 400, result)
+      const shown = await present(await harnessOpenThread(harness, ref))
+      return send(res, shown.ok ? 200 : 400, shown)
     }
 
     if ((url.pathname === '/api/new-session' || url.pathname === '/api/reveal') && req.method === 'POST') {
@@ -281,9 +333,8 @@ export async function apiMiddleware(req, res, next) {
         launch(dir)
         return send(res, 200, { ok: true })
       }
-      const result = harnessNewSession(harness || (await defaultHarness()), dir)
-      if (result.ok) launch(result.url)
-      return send(res, result.ok ? 200 : 400, result)
+      const shown = await present(await harnessNewSession(harness || (await defaultHarness()), dir))
+      return send(res, shown.ok ? 200 : 400, shown)
     }
 
     if (url.pathname === '/api/archive' && req.method === 'POST') {

@@ -15,7 +15,7 @@ import path from 'node:path'
 import os from 'node:os'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { exists, jsonLines, listDirs, listFiles, num, readHead } from '../lib/fsutil.mjs'
+import { exists, findExecutable, jsonLines, listDirs, listFiles, num, readHead } from '../lib/fsutil.mjs'
 
 const execFileAsync = promisify(execFile)
 const HOME = os.homedir()
@@ -54,6 +54,10 @@ const ACTIVE_WINDOW_MS = 30 * 60 * 1000
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const DESKTOP_ID = /^local_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+// The type check matters wherever an id came back from the page: `RegExp.test` stringifies, so
+// a one-element array holding a valid id would pass the pattern and then travel on as an array.
+const isCliId = (v) => typeof v === 'string' && UUID.test(v)
+const isDesktopId = (v) => typeof v === 'string' && DESKTOP_ID.test(v)
 
 function firstText(content) {
   if (typeof content === 'string') return content
@@ -238,15 +242,19 @@ function mergeThread(existing, next) {
  * Fold the adapter's private bookkeeping into the shape the rest of the app sees.
  * The session ids stay, but behind `ref` — an opaque blob the browser hands straight
  * back on open/archive, so nothing outside this file has to know what a Claude session
- * id looks like.
+ * id looks like. The cwd rides along because resuming from a terminal has to happen in
+ * the folder the session ran in — the worktree, not the repo root.
  */
 function toThread(t) {
-  const { desktopSessionId, desktopSessionIds, cliSessionId, bridgeSessionId, titled, hasLiveProcess, ...rest } = t
+  const {
+    desktopSessionId, desktopSessionIds, cliSessionId, cwdGuessed,
+    bridgeSessionId, titled, hasLiveProcess, ...rest
+  } = t
   return {
     ...rest,
-    canOpen: Boolean((desktopSessionId && DESKTOP_ID.test(desktopSessionId)) || (cliSessionId && UUID.test(cliSessionId))),
+    canOpen: isDesktopId(desktopSessionId) || isCliId(cliSessionId),
     canArchive: desktopSessionIds.length > 0,
-    ref: { desktopSessionId, desktopSessionIds, cliSessionId },
+    ref: { desktopSessionId, desktopSessionIds, cliSessionId, cwd: cwdGuessed ? '' : t.cwd || '' },
   }
 }
 
@@ -307,6 +315,9 @@ async function scanThreads() {
   for (const [id, entry] of transcripts) {
     if (claimed.has(id)) continue
     const meta = await transcriptMeta(entry)
+    // The decoded folder name is a guess (every dash became a slash), good enough to place the
+    // thread on the map but not to resume from: `claude --resume` in the wrong folder finds
+    // nothing. Only a cwd the transcript itself recorded goes into the ref.
     const cwd = meta.cwd || decodeProjectDir(path.basename(entry.projectDir))
     const { projectPath, project, worktree } = projectOf(cwd, '')
     add({
@@ -322,6 +333,7 @@ async function scanThreads() {
       projectPath,
       worktree,
       cwd,
+      cwdGuessed: !meta.cwd,
       gitBranch: meta.gitBranch,
       model: '',
       effort: '',
@@ -353,7 +365,7 @@ async function scanThreads() {
 
 /** Locate the desktop app's record for a session. Id is pattern-checked, never joined raw. */
 async function findSessionFile(sessionId) {
-  if (!DESKTOP_ID.test(sessionId)) return null
+  if (!isDesktopId(sessionId)) return null
   for (const account of await listDirs(DESKTOP_SESSIONS)) {
     for (const org of await listDirs(account)) {
       const file = path.join(org, `${sessionId}.json`)
@@ -403,29 +415,62 @@ async function setArchived(ref, archived) {
 }
 
 /**
+ * Where the `claude` CLI is, for a machine that has it but no desktop app to answer the deep
+ * link: PATH, then the places its installers put it. Only Linux asks; on macOS and Windows the
+ * deep link is always answered, so the walk would be wasted.
+ */
+const CLI_DIRS = [
+  path.join(HOME, '.local', 'bin'),
+  path.join(HOME, '.claude', 'local'),
+  '/usr/local/bin',
+  '/usr/bin',
+]
+const cliBinary = () => findExecutable('claude', CLI_DIRS)
+
+/** The terminal form of an action, for the server to fall back on. Only Linux has that path. */
+async function cliCommand(args, cwd) {
+  if (process.platform !== 'linux') return undefined
+  const bin = await cliBinary()
+  return bin ? { argv: [bin, ...args], cwd } : undefined
+}
+
+/**
  * Hands the thread back to Claude Code. `epitaxy/<local_…>` *navigates* the desktop app
  * to a thread it already has; `resume` *imports* the transcript, which spawns a second
  * untitled session and rewrites the .jsonl — so it is only ever the fallback for threads
  * the app has never seen. Ids are pattern-checked before they reach the opener.
+ *
+ * Alongside the URL, a CLI thread also offers `command`: the same resume done by running the
+ * CLI itself in a terminal, in the folder the session ran in. The server uses it only when
+ * nothing on the machine answers `claude://` — a Linux box with the CLI and no desktop app.
+ * The argv is built from the resolved binary and a pattern-checked id, never from `ref` raw.
  */
-function openThread(ref) {
-  const { desktopSessionId, cliSessionId } = ref || {}
-  if (desktopSessionId && DESKTOP_ID.test(desktopSessionId)) {
-    return { ok: true, url: `claude://claude.ai/epitaxy/${desktopSessionId}` }
+async function openThread(ref) {
+  const { desktopSessionId, cliSessionId, cwd } = ref || {}
+  let url = ''
+  if (isDesktopId(desktopSessionId)) {
+    url = `claude://claude.ai/epitaxy/${desktopSessionId}`
+  } else if (isCliId(cliSessionId)) {
+    url = `claude://resume?session=${cliSessionId}`
   }
-  if (cliSessionId && UUID.test(cliSessionId)) {
-    return { ok: true, url: `claude://resume?session=${cliSessionId}` }
-  }
-  return { ok: false, error: 'No openable session id on that thread' }
+
+  const command = isCliId(cliSessionId)
+    ? await cliCommand(['--resume', cliSessionId], typeof cwd === 'string' ? cwd : '')
+    : undefined
+
+  if (!url && !command) return { ok: false, error: 'No openable session id on that thread' }
+  return { ok: true, url, command }
 }
 
 /**
- * A brand new thread rooted in a repo — the same `code/new?folder=` deep link Finder's
- * "New Claude Code Session Here" quick action uses. Nothing is resumed and nothing is
- * written: the desktop app just opens an empty session with that folder as its workspace.
+ * A brand new thread rooted in a repo — the same `code/new?folder=` deep link the desktop
+ * app's "New Claude Code Session Here" action uses (a Finder quick action on macOS). Nothing
+ * is resumed and nothing is written: the desktop app just opens an empty session with that
+ * folder as its workspace. Without the app, the equivalent is the bare CLI in that folder.
  */
-function newSession(dir) {
-  return { ok: true, url: `claude://code/new?${new URLSearchParams({ folder: dir })}` }
+async function newSession(dir) {
+  const url = `claude://code/new?${new URLSearchParams({ folder: dir })}`
+  return { ok: true, url, command: await cliCommand([], dir) }
 }
 
 /**
@@ -440,7 +485,12 @@ async function appStartedAt() {
 
   let started = 0
   try {
-    started = process.platform === 'win32' ? await windowsAppStartedAt() : await darwinAppStartedAt()
+    // Linux stays at 0: the desktop app is optional there and its process shape has not
+    // been verified, and the one thing this feeds — `archivePending` — is not surfaced by the
+    // page. It used to fall into the macOS branch, a `ps` sweep every scan for a path that
+    // only exists inside a .app bundle.
+    if (process.platform === 'win32') started = await windowsAppStartedAt()
+    else if (process.platform !== 'linux') started = await darwinAppStartedAt()
   } catch {
     /* no process listing — treat the app as never having restarted */
   }
