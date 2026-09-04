@@ -11,6 +11,7 @@
  *   - the CLI keeps the raw transcript, which is the only source for terminal-started work
  */
 import fsp from 'node:fs/promises'
+import { existsSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 import { execFile } from 'node:child_process'
@@ -27,12 +28,48 @@ const HOME = os.homedir()
 function desktopDataDir() {
   switch (process.platform) {
     case 'win32':
-      return path.join(process.env.APPDATA || path.join(HOME, 'AppData', 'Roaming'), 'Claude')
+      return windowsDataDir()
     case 'linux':
       return path.join(process.env.XDG_CONFIG_HOME || path.join(HOME, '.config'), 'Claude')
     default:
       return path.join(HOME, 'Library', 'Application Support', 'Claude')
   }
+}
+
+/**
+ * Windows has two answers, because the app ships two ways.
+ *
+ * The classic installer writes to `%APPDATA%\Claude`, which is what Electron's `userData`
+ * means everywhere else. Installed from the Microsoft Store the app is an MSIX package, and
+ * MSIX *redirects* what a packaged app believes is `%APPDATA%` into its own private
+ * `…\Packages\<family>\LocalCache\Roaming`. The app is installed, running, and writing session
+ * records — and `%APPDATA%\Claude` does not exist at all.
+ *
+ * Looking only there reports no desktop app on a machine whose deep links work perfectly: no
+ * thread ever gets a desktop record, so nothing is archivable and every thread claims the app
+ * has never seen it.
+ *
+ * The package folder is globbed rather than named. Its suffix is a hash of the publisher, and
+ * hard-coding it buys a constant that is right until it is not — and wrong in a way that looks
+ * exactly like the app having been uninstalled.
+ */
+function windowsDataDir() {
+  const roaming = path.join(process.env.APPDATA || path.join(HOME, 'AppData', 'Roaming'), 'Claude')
+  const local = process.env.LOCALAPPDATA || path.join(HOME, 'AppData', 'Local')
+  const candidates = [roaming]
+  try {
+    for (const entry of readdirSync(path.join(local, 'Packages'), { withFileTypes: true })) {
+      if (entry.isDirectory() && entry.name.startsWith('Claude_')) {
+        candidates.push(path.join(local, 'Packages', entry.name, 'LocalCache', 'Roaming', 'Claude'))
+      }
+    }
+  } catch {
+    /* no Packages directory — this machine has no Store apps at all */
+  }
+  // Whichever one actually holds the session records. Falling back to the unpackaged path
+  // keeps every caller working against a real path when neither exists, which is what
+  // `detect()` reads as "no desktop app here".
+  return candidates.find((dir) => existsSync(path.join(dir, 'claude-code-sessions'))) || roaming
 }
 
 /** Where the Claude desktop app keeps one JSON record per thread. */
