@@ -325,6 +325,19 @@ export class Colony {
     this.activePlots = active
     this._rebuildNavigation()
     this.stats = { ...stats, done: stats.celebrating }
+    // The roster is capped by `maxAgents` (40-200 by preset), and it was filled in plot
+    // order — biggest repo first. A repo holding thousands of automated SDK runs therefore
+    // consumed every slot before a thread that wants you was ever reached: the panel counts
+    // "23 need you" off the full list while `N` walks the roster, finds none of them, and
+    // says nobody is waiting. Rank by the same status order the thread list already uses,
+    // so whatever the cap keeps is whatever matters most. Buildings are untouched — they
+    // are placed by the createdAt index above, and only roster *membership* is at stake.
+    roster.sort((a, b) => {
+      const rank = STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status)
+      if (rank !== 0) return rank
+      return b.thread.lastActivityAt - a.thread.lastActivityAt
+    })
+
     this.astronauts.setRoster(roster, this._world())
     return this.stats
   }
