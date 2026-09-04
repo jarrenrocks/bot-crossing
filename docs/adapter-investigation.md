@@ -40,12 +40,12 @@ Read-only inspection of an installed Codex extension found:
 
 ## Known limitations
 
-- Sessions with UUID thread IDs can open in the installed OpenAI VS Code extension through its verified `vscode://openai.chatgpt/local/<thread-id>` route. The server hands this route to Windows through PowerShell when running under WSL, to `open(1)` on macOS, or to `xdg-open` on native Linux.
+- Sessions with UUID thread IDs open through the installed extension's verified `openai-codex://route/local/<thread-id>` custom-editor URI. The server invokes the VS Code CLI with that URI; `BOT_CROSSING_CODE_CLI` may specify the CLI path when `code` is not on `PATH` (as with a desktop-launched WSL server).
 - Creating sessions is disabled for the same reason.
 - Native archiving is disabled (`canArchive: false`) because no Codex archive field or supported mutation was found. Bot Crossing's own colony archive state remains separate.
 - Running and error states are conservative transcript-based inferences, not direct process state.
 - Worktree identity and focus/unread state are unavailable from the verified records.
-- Session scanning works with the verified Linux/WSL storage path. Codex thread opening is supported in Windows VS Code from WSL; other cross-platform harness handoffs remain dependent on their registered URI handlers.
+- Session scanning works with the verified Linux/WSL storage path. Codex thread opening is supported in the connected WSL VS Code window when its CLI and IPC environment are available; other cross-platform harness handoffs remain dependent on their registered URI handlers.
 
 The selected-thread card displays the adapter's generic `harnessName`, so Codex and Claude sessions are distinguishable without adding harness-specific frontend branches.
 

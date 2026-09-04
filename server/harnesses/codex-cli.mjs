@@ -177,7 +177,7 @@ export function createCodexHarness({ codexHome = path.join(os.homedir(), '.codex
       if (!SESSION_ID_RE.test(ref?.sessionId || '')) {
         return { ok: false, error: 'This Codex session does not have a valid thread ID.' }
       }
-      return { ok: true, url: `vscode://openai.chatgpt/local/${ref.sessionId}` }
+      return { ok: true, url: `openai-codex://route/local/${ref.sessionId}` }
     },
     newSession: () => ({ ok: false, error: 'Codex has no verified desktop deep link. Start it in a terminal from the project folder.' }),
     setArchived: async () => ({ ok: false, error: 'Codex does not expose a native session archive operation.' }),

@@ -106,15 +106,12 @@ function launch(target) {
   let [command, ...args] = OPENERS[process.platform] || []
   let options = { stdio: 'ignore', detached: true }
 
-  if (process.platform === 'linux' && process.env.WSL_DISTRO_NAME) {
-    if (String(target).startsWith('vscode://')) {
-      command = 'powershell.exe'
-      args = ['-NoProfile', '-Command', 'Start-Process -FilePath $env:BOT_CROSSING_LAUNCH_TARGET']
-      options = { ...options, env: { ...process.env, BOT_CROSSING_LAUNCH_TARGET: target } }
-    } else {
-      command = 'explorer.exe'
-      args = [target]
-    }
+  if (String(target).startsWith('openai-codex://')) {
+    command = process.env.BOT_CROSSING_CODE_CLI || 'code'
+    args = ['--reuse-window', target]
+  } else if (process.platform === 'linux' && process.env.WSL_DISTRO_NAME) {
+    command = 'explorer.exe'
+    args = [target]
   } else {
     args.push(target)
   }

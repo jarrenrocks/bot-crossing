@@ -108,7 +108,7 @@ test('builds the verified VS Code route for a valid Codex thread ID', () => {
   const sessionId = '12345678-1234-4abc-8def-123456789abc'
   assert.deepEqual(harness.openThread({ sessionId }), {
     ok: true,
-    url: `vscode://openai.chatgpt/local/${sessionId}`,
+    url: `openai-codex://route/local/${sessionId}`,
   })
   assert.equal(harness.openThread({ sessionId: 'not-a-session' }).ok, false)
 })
