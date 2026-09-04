@@ -138,8 +138,10 @@ Verified on a real machine:
   `~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl`; live processes in
   `~/.claude/sessions/*.json`. Implemented in `claude-code.mjs`.
 - **Codex CLI** — transcripts in `~/.codex/sessions/YYYY/MM/DD/rollout-<iso>-<uuid>.jsonl`,
-  with records shaped `{ timestamp, type, payload }`, and what looks like an index at
-  `~/.codex/session_index.jsonl`. Not implemented yet.
+  with records shaped `{ timestamp, type, payload }`, plus an optional index at
+  `~/.codex/session_index.jsonl`. Implemented read-only in `codex-cli.mjs`; see
+  [`docs/adapter-investigation.md`](../../docs/adapter-investigation.md) for verified fields
+  and capability limitations.
 
 For anything else, the fastest way in is usually to start a throwaway session in that harness
 and watch which files change:
@@ -150,8 +152,7 @@ find ~ -maxdepth 4 -newermt '-2 minutes' -type f 2>/dev/null | grep -iv Library/
 
 ## Checking your work
 
-There is no test suite to run yet. What the Claude Code adapter was verified against, and what
-a new one should clear too:
+The Codex adapter has fixture-based tests (`npm test`). A new adapter should also clear:
 
 1. `node --check server/harnesses/my-harness.mjs`
 2. With the app running, `GET /api/harnesses` lists every registered harness and whether

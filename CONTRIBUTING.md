@@ -31,19 +31,18 @@ written down here.
 
 ## What is most worth contributing
 
-**Harness adapters, by a wide margin.** Right now Bot Crossing only reads Claude Code. The
-whole point of the seam in `server/harnesses/` is that adding Codex CLI, OpenCode, Antigravity,
-Amp, or anything else should be one new file and one line in a registry.
+**Harness adapters, by a wide margin.** Bot Crossing currently reads Claude Code and Codex CLI.
+The whole point of the seam in `server/harnesses/` is that adding OpenCode, Antigravity, Amp,
+or anything else should be one new file and one line in a registry.
 
 Everything you need is in **[`server/harnesses/README.md`](server/harnesses/README.md)** — the
 interface, the thread shape, the ground rules, and how to find where a given harness keeps its
 sessions on disk.
 
-One caveat worth knowing before you start: **the interface has only ever been implemented once**,
-by the Claude Code adapter it was extracted from. It is very likely the first genuinely different
-harness will not fit perfectly. If yours does not, that is a bug in the seam and not in your
-work — say so in the PR and change what you need to. I would much rather widen the interface
-than have you contort an adapter around it.
+One caveat worth knowing before you start: **the interface began with Claude Code and still has
+only two implementations**. A genuinely different harness may not fit perfectly. If yours does
+not, that is a bug in the seam and not in your work — say so in the PR and change what you need
+to. I would much rather widen the interface than have you contort an adapter around it.
 
 Also useful:
 

@@ -80,7 +80,6 @@ async function writeState(next) {
 }
 
 /**
-/**
  * Hand a `harness://…` deep link, or a folder, to whatever opens things on this OS. The
  * opener gets an argument list, never a shell string.
  *
@@ -104,10 +103,24 @@ const OPENERS = {
 }
 
 function launch(target) {
-  const opener = OPENERS[process.platform]
-  if (!opener) return
-  const [cmd, ...args] = opener
-  const child = spawn(cmd, [...args, target], { stdio: 'ignore', detached: true })
+  let [command, ...args] = OPENERS[process.platform] || []
+  let options = { stdio: 'ignore', detached: true }
+
+  if (process.platform === 'linux' && process.env.WSL_DISTRO_NAME) {
+    if (String(target).startsWith('vscode://')) {
+      command = 'powershell.exe'
+      args = ['-NoProfile', '-Command', 'Start-Process -FilePath $env:BOT_CROSSING_LAUNCH_TARGET']
+      options = { ...options, env: { ...process.env, BOT_CROSSING_LAUNCH_TARGET: target } }
+    } else {
+      command = 'explorer.exe'
+      args = [target]
+    }
+  } else {
+    args.push(target)
+  }
+
+  if (!command) return
+  const child = spawn(command, args, options)
   child.on('error', () => {})
   child.unref()
 }
