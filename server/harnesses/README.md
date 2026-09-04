@@ -136,9 +136,12 @@ Verified on a real machine:
   `~/Library/Application Support/Claude/claude-code-sessions/<account>/<org>/local_*.json`;
   CLI transcripts in `~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl`; live processes in
   `~/.claude/sessions/*.json`. Implemented in `claude-code.mjs`.
-- **Codex** — transcripts in `~/.codex/sessions/YYYY/MM/DD/rollout-<iso>-<uuid>.jsonl`,
-  with records shaped `{ timestamp, type, payload }`; titles in `~/.codex/session_index.jsonl`;
-  desktop unread state in `~/.codex/.codex-global-state.json`. Implemented in `codex.mjs`.
+- **Codex** — canonical thread metadata in the newest `~/.codex/state_*.sqlite`; live/error
+  lifecycle events in the tail of the database's `rollout_path`; desktop unread state in
+  `~/.codex/.codex-global-state.json`. The database is opened read-only, scans never launch a
+  process, and archive actions resolve a standalone `codex` only from `PATH` or
+  `BOT_CROSSING_CODEX_BIN`; executables inside app bundles are always rejected. Implemented in
+  `codex.mjs`; requires Node 22.13+ for the unflagged built-in SQLite module.
 
 For anything else, the fastest way in is usually to start a throwaway session in that harness
 and watch which files change:
