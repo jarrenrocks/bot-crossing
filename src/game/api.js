@@ -1,3 +1,5 @@
+import { mergeState } from './merge-state.js'
+
 async function req(url, options) {
   const res = await fetch(url, options)
   const body = await res.json().catch(() => ({}))
@@ -13,14 +15,70 @@ const post = (url, payload) =>
   })
 
 export const fetchThreads = () => req('/api/threads')
-export const fetchState = () => req('/api/state')
 
-export const saveState = (state) =>
-  req('/api/state', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(state),
-  })
+/**
+ * The colony file, and the base every later save is measured against.
+ *
+ * `baseUpdatedAt` is the file version this tab last agreed with, and `baseSnapshot` is the
+ * state as it looked at that moment. The snapshot is the expensive-looking half and the one
+ * that matters: without it a conflicted save can only union the two lists, and a union can
+ * never express "I un-archived this" — see `merge-state.js`.
+ */
+let baseUpdatedAt = 0
+let baseSnapshot = null
+
+function adoptBase(state, updatedAt) {
+  baseUpdatedAt = Number(updatedAt ?? state?.updatedAt) || 0
+  // Cloned, because the page mutates the object it holds. Sharing the reference would let
+  // `local` and `base` drift into being the same thing, which reads as "this tab changed
+  // nothing" and quietly turns every save back into last-writer-wins.
+  baseSnapshot = structuredClone(state)
+}
+
+export const fetchState = async () => {
+  const state = await req('/api/state')
+  adoptBase(state)
+  return state
+}
+
+/** Enough attempts to get through a burst of saves from another tab, and no more. */
+const SAVE_TRIES = 3
+
+/**
+ * Save the colony, merging rather than clobbering if another tab got there first.
+ *
+ * The server answers 409 with what is actually on disk when this tab's base is stale. That is
+ * not a failure to report at the user — it is the normal shape of two tabs being open — so it
+ * is merged and re-sent here. `base` for the next attempt is the disk state just merged
+ * against, which is what keeps a retry from re-applying edits it has already folded in.
+ *
+ * @returns the state the caller should hold from now on. That is the *same object* when
+ *   nothing conflicted, so the common path never swaps the page's state out from under a click
+ *   that happened mid-flight; only a real merge hands back something new.
+ */
+export async function saveState(state) {
+  let local = state
+  for (let attempt = 0; attempt < SAVE_TRIES; attempt++) {
+    const res = await fetch('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...local, baseUpdatedAt }),
+    })
+    const body = await res.json().catch(() => ({}))
+
+    if (res.status === 409) {
+      local = mergeState(baseSnapshot, local, body)
+      adoptBase(body)
+      continue
+    }
+    if (!res.ok) throw new Error(body.error || `${res.status} ${res.statusText}`)
+    adoptBase(local, body.updatedAt)
+    return local
+  }
+  // Losing to another tab three times running means it is saving faster than we can merge.
+  // The caller swallows this: nothing local is lost, and the next save tries again.
+  throw new Error('Could not save the colony — another tab kept writing first')
+}
 
 /**
  * Hand a thread back to whichever harness owns it — the desktop app comes forward on its own.

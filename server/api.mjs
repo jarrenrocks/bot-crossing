@@ -57,9 +57,20 @@ async function readState() {
 }
 
 /**
- * One writer: the browser owns this file and PUTs it whole. `/api/archive` deliberately
- * does not touch it — if it did, the next save from a page holding older state would
- * silently drop every archive made since that page loaded.
+ * The browser owns this file and PUTs it whole; `updatedAt` is what makes that safe.
+ *
+ * This used to say "one writer", and that was only ever true of *browser vs server* —
+ * `/api/archive` still deliberately does not touch this file, because a server-side write
+ * would be invisible to a page that had already loaded. It was never true of tab vs tab, and
+ * two tabs are two writers on one whole-file save: the one that saves last pastes its own
+ * boot-time picture over everything the other has done since.
+ *
+ * So the stamp written here is a version, and `PUT /api/state` refuses a body whose
+ * `baseUpdatedAt` disagrees with it — see the endpoint. Every write goes through this
+ * function, so there is exactly one place the version can advance.
+ *
+ * Still written to a temp file and renamed: rename is atomic, so a save interrupted halfway
+ * leaves the previous colony intact rather than a truncated file that reads back as empty.
  */
 async function writeState(next) {
   const state = {
@@ -261,8 +272,31 @@ export async function apiMiddleware(req, res, next) {
       return send(res, 200, await readState())
     }
 
+    /**
+     * Optimistic concurrency, so a second tab cannot paste over the first one's work.
+     *
+     * `baseUpdatedAt` is the `updatedAt` the caller last read or wrote. If the file no longer
+     * carries that version, the caller's whole-file body describes a colony that no longer
+     * exists, and writing it would lose whatever happened in between — so the disk state is
+     * handed back with a 409 and the page merges against it. Merging here was the other option
+     * and it is the wrong place for it: the server has no idea which of two `plots` layouts a
+     * person actually dragged.
+     *
+     * The test is inequality rather than "older than". A colony file also moves *backwards*,
+     * when it is restored from a backup or edited by hand, and a page open across that restore
+     * holds a base newer than the disk — which sails through a greater-than check and pastes
+     * the pre-restore colony straight back, looking exactly like the restore having failed.
+     *
+     * A missing or zero base is a first write and is allowed. That keeps a fresh install
+     * working — there is nothing to lose when the file does not exist yet — and keeps the
+     * endpoint drivable from `curl` without having to read the file first.
+     */
     if (url.pathname === '/api/state' && req.method === 'PUT') {
-      return send(res, 200, await writeState(await readJsonBody(req)))
+      const body = await readJsonBody(req)
+      const base = Number(body.baseUpdatedAt) || 0
+      const current = await readState()
+      if (base && current.updatedAt !== base) return send(res, 409, current)
+      return send(res, 200, await writeState(body))
     }
 
     if (url.pathname === '/api/open' && req.method === 'POST') {

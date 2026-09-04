@@ -593,7 +593,10 @@ function queueSave() {
   clearTimeout(pendingSave)
   pendingSave = setTimeout(async () => {
     try {
-      await saveState(state)
+      // Adopt whatever came back: unchanged when the save was clean, and the merged colony
+      // when another tab had written since this one loaded. Dropping it would leave this page
+      // asserting a picture the file has already moved past, and the next save would fight.
+      state = await saveState(state)
     } catch {
       /* the colony still runs; only the archive list is at risk, and it retries next time */
     }
