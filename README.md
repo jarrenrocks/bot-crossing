@@ -39,7 +39,7 @@ somebody writing that adapter.
 | Harness | Status |
 | --- | --- |
 | **[Claude Code](https://claude.com/claude-code)** (Anthropic) | ✅ **Supported** — desktop app and CLI, including worktrees, live-process detection and archiving |
-| [Codex CLI](https://developers.openai.com/codex/cli) (OpenAI) | ⬜ Not yet — transcripts found at `~/.codex/sessions/`, [notes here](server/harnesses/README.md#starting-points) |
+| **[Codex](https://developers.openai.com/codex) (OpenAI)** | ✅ **Supported** — desktop app and CLI, including live-turn detection and archiving (Node 22.13+) |
 | [OpenCode](https://opencode.ai) | ⬜ Not yet |
 | [Antigravity CLI](https://antigravity.google) (Google) | ⬜ Not yet — the successor to Gemini CLI, which Google stopped serving individual accounts on 18 June 2026 |
 | [Cursor](https://cursor.com) (`cursor-agent`) | ⬜ Not yet |
