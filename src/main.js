@@ -18,6 +18,7 @@ import {
   newSession,
   revealFolder,
 } from './game/api.js'
+import { hideProject, hiddenCatalog, unhideProject } from './game/hidden-projects.js'
 
 /**
  * Boot and the outer game loop.
@@ -47,7 +48,7 @@ const engine = new Engine(settings).mount(app)
 const rig = new CameraRig(engine.camera, engine.canvas, settings)
 const colony = new Colony(engine.scene, settings, engine.camera, engine.renderer)
 
-let state = { archived: [], archivedAt: {}, opened: [], plots: {}, seen: {} }
+let state = { archived: [], archivedAt: {}, opened: [], plots: {}, seen: {}, hiddenProjects: [] }
 let threads = []
 /** Last legend built for the bottom bar, kept so the open zone's chip can light up between polls. */
 let legendProjects = []
@@ -164,6 +165,28 @@ const actions = {
     } catch (err) {
       hud.toast(err.message || 'Could not open that folder', 'err')
     }
+  },
+
+  hideProject: () => {
+    const name = selectedProject
+    if (!name) return
+    state.hiddenProjects = hideProject(state.hiddenProjects || [], name)
+    queueSave()
+    if (selectedId) {
+      const thread = threads.find((t) => t.id === selectedId)
+      if (thread?.project === name) select(null, {})
+    }
+    selectedProject = null
+    applyThreads(threads)
+    hud.toast(`Hidden ${name} — still in your harness, gone from the colony`)
+  },
+
+  unhideProject: (name) => {
+    if (!name) return
+    state.hiddenProjects = unhideProject(state.hiddenProjects || [], name)
+    queueSave()
+    applyThreads(threads)
+    hud.toast(`Showing ${name} again`)
   },
 
   copyProjectPath: async () => {
@@ -318,11 +341,12 @@ function pathForProject(name) {
 
 /** Push the open zone's current contents at the sidebar. Closes it if the zone is gone. */
 function syncProject() {
+  const hidden = hiddenCatalog(state.hiddenProjects || [], threads)
   const plot = selectedProject ? colony.plots.get(selectedProject) : null
   if (!plot) {
     selectedProject = null
     hud.setProject(null)
-    hud.setLegend(legendProjects, null)
+    hud.setLegend(legendProjects, null, hidden)
     return
   }
   const now = Date.now()
@@ -351,7 +375,7 @@ function syncProject() {
   })
   // The legend is the same selection seen from the bottom of the screen: keep it in step
   // here rather than only on the next poll.
-  hud.setLegend(legendProjects, selectedProject)
+  hud.setLegend(legendProjects, selectedProject, hidden)
 }
 
 // ── pointer ───────────────────────────────────────────────────────────────────────────
@@ -541,7 +565,8 @@ window.addEventListener('keydown', (e) => {
 function applyThreads(list) {
   threads = list
   const archivedSet = new Set(state.archived)
-  const stats = colony.setThreads(list, archivedSet)
+  const hiddenSet = new Set(state.hiddenProjects || [])
+  const stats = colony.setThreads(list, archivedSet, hiddenSet)
   hud.setStats(stats)
 
   legendProjects = colony.plotOrder

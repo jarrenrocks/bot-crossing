@@ -18,6 +18,7 @@ import { Astronauts } from '../agents/astronauts.js'
 import { Indicators, BADGE } from '../agents/indicators.js'
 import { Particles } from '../agents/particles.js'
 import { Navigation } from '../agents/navigation.js'
+import { liveThreadsForColony } from './hidden-projects.js'
 
 /**
  * The colony: everything that turns a list of agent threads into a place.
@@ -257,9 +258,9 @@ export class Colony {
    * ids — repo name for plots, session id for buildings — so a poll that changes nothing
    * moves nothing on screen.
    */
-  setThreads(threads, archivedIds = new Set()) {
+  setThreads(threads, archivedIds = new Set(), hiddenProjects = new Set()) {
     const now = Date.now()
-    const live = threads.filter((t) => !t.archived && !archivedIds.has(t.id))
+    const live = liveThreadsForColony(threads, archivedIds, hiddenProjects)
 
     // Group by repo, biggest project first so the busiest work lands nearest the middle.
     const byProject = new Map()
@@ -274,6 +275,16 @@ export class Colony {
     })
 
     this._syncPlots(projects)
+
+    // Hidden repos keep their last footprint in layout memory so showing them again can
+    // reclaim the same ground if it is still free. Touching the map entry also keeps
+    // LAYOUT_MEMORY from dropping a name you only hid.
+    for (const name of hiddenProjects) {
+      const cells = this.plotCells.get(name)
+      if (!cells) continue
+      this.plotCells.delete(name)
+      this.plotCells.set(name, cells)
+    }
 
     const roster = []
     const seenBuildings = new Set()

@@ -3,6 +3,7 @@ import { PLANETS } from '../world/planet.js'
 import { TIMES } from '../world/sky.js'
 import { STATUS_LABEL } from '../game/colony.js'
 import { FACE, FRAME_COLS, FRAME_ROWS } from '../agents/faces.js'
+import { PLOT_PALETTE, hashString } from '../world/plots.js'
 
 /**
  * The whole HUD, in plain DOM.
@@ -59,6 +60,7 @@ export class Hud {
     this.actions = actions
     this.visible = true
     this._last = {}
+    this.hiddenOpen = false
 
     this.el = document.createElement('div')
     this.el.className = 'hud'
@@ -341,6 +343,8 @@ export class Hud {
     on('#btn-new-session', 'click', () => this.actions.newConversation?.())
     on('#btn-reveal', 'click', () => this.actions.revealProject?.())
     on('#btn-copy-path', 'click', () => this.actions.copyProjectPath?.())
+    on('#btn-hide-project', 'click', () => this.actions.hideProject?.())
+    on('#btn-hidden-toggle', 'click', () => this.toggleHiddenList())
     on('#btn-locate', 'click', () => this.actions.focusProject?.(this.project?.name))
     on('#btn-close-project', 'click', () => this.actions.closeProject?.())
     on('.help', 'click', (e) => {
@@ -375,8 +379,11 @@ export class Hud {
    * it is a list now because the sidebar is where all the chrome lives, and because a list
    * can carry a count and an alarm without running out of room at eleven repos.
    */
-  setLegend(projects, activeName = null) {
-    const signature = projects.map((p) => `${p.name}:${p.count}:${p.accent}:${p.urgent ? 1 : 0}`).join('|') + `~${activeName}`
+  setLegend(projects, activeName = null, hidden = []) {
+    const signature =
+      projects.map((p) => `${p.name}:${p.count}:${p.accent}:${p.urgent ? 1 : 0}`).join('|') +
+      `~${activeName}~` +
+      hidden.map((p) => `${p.name}:${p.count}`).join('|')
     if (this._last.legend === signature) return
     this._last.legend = signature
 
@@ -397,6 +404,42 @@ export class Hud {
       wrap.appendChild(b)
     }
     this.$('.sec-head span').textContent = `${projects.length} repo${projects.length === 1 ? '' : 's'}`
+
+    const block = this.$('.hidden-block')
+    block.hidden = hidden.length === 0
+    this.$('#btn-hidden-toggle .label').textContent = `${hidden.length} hidden`
+    const hiddenWrap = this.$('.hidden-projects')
+    hiddenWrap.innerHTML = ''
+    for (const p of hidden) {
+      const accent = PLOT_PALETTE[hashString(p.name) % PLOT_PALETTE.length]
+      const row = document.createElement('div')
+      row.className = 'repo hidden-repo'
+      row.innerHTML =
+        `<i class="swatch" style="background:${hex(accent)};color:${hex(accent)}"></i>` +
+        `<span class="n">${escapeHtml(p.name)}</span>` +
+        `<span class="count">${p.count}</span>`
+      const show = document.createElement('button')
+      show.type = 'button'
+      show.className = 'btn ghost show-repo'
+      show.title = `Show ${p.name} on the map again`
+      show.textContent = 'Show'
+      show.addEventListener('click', () => this.actions.unhideProject?.(p.name))
+      row.appendChild(show)
+      hiddenWrap.appendChild(row)
+    }
+    this._syncHiddenList()
+  }
+
+  toggleHiddenList() {
+    this.hiddenOpen = !this.hiddenOpen
+    this._syncHiddenList()
+  }
+
+  _syncHiddenList() {
+    const toggle = this.$('#btn-hidden-toggle')
+    const list = this.$('.hidden-projects')
+    toggle.setAttribute('aria-expanded', String(this.hiddenOpen))
+    list.hidden = !this.hiddenOpen
   }
 
   /**
@@ -826,6 +869,12 @@ const TEMPLATE = `
     <div class="projects-pane">
       <div class="sec-head"><span>Repos</span></div>
       <div class="projects"></div>
+      <div class="hidden-block" hidden>
+        <button type="button" class="hidden-toggle" id="btn-hidden-toggle" aria-expanded="false">
+          <span class="label">0 hidden</span>
+        </button>
+        <div class="hidden-projects" hidden></div>
+      </div>
     </div>
 
     <div class="project-detail">
@@ -844,6 +893,7 @@ const TEMPLATE = `
           <button class="btn" id="btn-reveal" title="Show this folder in ${FILE_MANAGER}">${ICON.folder} ${FILE_MANAGER}</button>
           <button class="btn" id="btn-copy-path" title="Copy the folder path">${ICON.copy} Copy path</button>
         </div>
+        <button class="btn" id="btn-hide-project" title="Hide this repo from the colony — does not archive its threads">${ICON.eyeOff} Hide from colony</button>
       </div>
       <div class="threads-head"></div>
       <div class="threads"></div>
@@ -889,7 +939,7 @@ const TEMPLATE = `
 <div class="help">
   <div class="sheet panel">
     <h2>Bot Crossing</h2>
-    <p class="sub">Every coding-agent thread on this Mac is an astronaut. They walk out of the ship, claim a plot for their repo, and build. Click one to open its thread; click a zone — its deck or its name — for the repo itself, and start a new conversation there. Navigation works like Google Earth — drag the ground itself, right-drag to tilt, scroll to zoom in on whatever is under the cursor.</p>
+    <p class="sub">Every coding-agent thread on this Mac is an astronaut. They walk out of the ship, claim a plot for their repo, and build. Click one to open its thread; click a zone — its deck or its name — for the repo itself, and start a new conversation there. Hide a repo from that panel if you do not want it on the map — its threads stay in your harness, and you can show it again from the list. Navigation works like Google Earth — drag the ground itself, right-drag to tilt, scroll to zoom in on whatever is under the cursor.</p>
     <div class="cols">
       <div>
         <div class="k"><span>Drag the ground</span><kbd>drag</kbd></div>
@@ -905,7 +955,7 @@ const TEMPLATE = `
       <div>
         <div class="k"><span>Next needing you</span><kbd>N</kbd></div>
         <div class="k"><span>Open thread</span><kbd>Enter</kbd></div>
-        <div class="k"><span>Archive</span><kbd>A</kbd></div>
+        <div class="k"><span>Archive thread</span><kbd>A</kbd></div>
         <div class="k"><span>New conversation</span><kbd>C</kbd></div>
         <div class="k"><span>Orbit mode</span><kbd>O</kbd></div>
         <div class="k"><span>Change planet</span><kbd>Tab</kbd></div>

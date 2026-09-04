@@ -74,7 +74,8 @@ than have you work around it.
 | How finished a building looks | How large its transcript is, on a log scale |
 | Scaffolding | Somebody is at that site right now |
 | Walking out of the ship | A thread that just appeared |
-| Walking back into the ship | You archived it |
+| Walking back into the ship | You archived that thread |
+| A repo vanishing from the map | You hid it from the colony. Its threads are untouched; show it again from the Hidden list |
 
 ### A zone stays where it is
 
@@ -628,9 +629,10 @@ Everything that knows what a *particular* harness's files look like lives in
 `server/harnesses/`. Everything else — the scanner, the API, the whole of `src/` — is written
 against the thread shape and never against a harness.
 
-Colony state lives in `data/colony.json` — where each zone sits and what you archived.
-Deleting it only loses the archive list and the map's arrangement; the threads themselves are
-untouched, and the colony lays itself out again from scratch.
+Colony state lives in `data/colony.json` — where each zone sits, what you archived, and which
+repos you hid from the map. Deleting it only loses the archive list, the hide list and the
+map's arrangement; the threads themselves are untouched, and the colony lays itself out again
+from scratch.
 
 ## Building your own
 
