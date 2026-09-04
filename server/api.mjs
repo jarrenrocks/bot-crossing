@@ -108,7 +108,7 @@ function launch(target, context = {}) {
 
   if (String(target).startsWith('openai-codex://')) {
     command = process.env.BOT_CROSSING_CODE_CLI || 'code'
-    args = ['--reuse-window', target]
+    args = ['--file-uri', target]
     options = {
       ...options,
       env: { ...process.env, BOT_CROSSING_THREAD_CWD: context.cwd || '' },

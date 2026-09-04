@@ -41,7 +41,7 @@ Read-only inspection of an installed Codex extension found:
 
 ## Known limitations
 
-- Sessions whose metadata identifies a `codex_vscode` origin and a UUID thread ID open through the installed extension's verified `openai-codex://route/local/<thread-id>` custom-editor URI. The server invokes the VS Code CLI with that URI and supplies the session working directory as `BOT_CROSSING_THREAD_CWD`; `BOT_CROSSING_CODE_CLI` may point to a host-specific bridge when `code` is not on `PATH` or VS Code must first be launched (as with a desktop-launched WSL server).
+- Sessions whose metadata identifies a `codex_vscode` origin and a UUID thread ID open through the installed extension's verified `openai-codex://route/local/<thread-id>` custom-editor URI. The server invokes the VS Code CLI's `--file-uri` path with that URI and supplies the session working directory as `BOT_CROSSING_THREAD_CWD`; `BOT_CROSSING_CODE_CLI` may point to a host-specific bridge when `code` is not on `PATH` or VS Code must first be launched (as with a desktop-launched WSL server).
 - Other origins are not forced into VS Code. Their Open action remains disabled until that originating client exposes a verified resume mechanism; this prevents a CLI or standalone-app session from being sent to the wrong interface.
 - Creating sessions is disabled for the same reason.
 - Native archiving is disabled (`canArchive: false`) because no Codex archive field or supported mutation was found. Bot Crossing's own colony archive state remains separate.
