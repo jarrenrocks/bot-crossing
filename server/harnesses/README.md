@@ -136,9 +136,9 @@ Verified on a real machine:
   `~/Library/Application Support/Claude/claude-code-sessions/<account>/<org>/local_*.json`;
   CLI transcripts in `~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl`; live processes in
   `~/.claude/sessions/*.json`. Implemented in `claude-code.mjs`.
-- **Codex CLI** — transcripts in `~/.codex/sessions/YYYY/MM/DD/rollout-<iso>-<uuid>.jsonl`,
-  with records shaped `{ timestamp, type, payload }`, and what looks like an index at
-  `~/.codex/session_index.jsonl`. Not implemented yet.
+- **Codex** — transcripts in `~/.codex/sessions/YYYY/MM/DD/rollout-<iso>-<uuid>.jsonl`,
+  with records shaped `{ timestamp, type, payload }`; titles in `~/.codex/session_index.jsonl`;
+  desktop unread state in `~/.codex/.codex-global-state.json`. Implemented in `codex.mjs`.
 
 For anything else, the fastest way in is usually to start a throwaway session in that harness
 and watch which files change:
