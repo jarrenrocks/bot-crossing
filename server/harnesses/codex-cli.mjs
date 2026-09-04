@@ -64,7 +64,7 @@ async function readIndex(file) {
 }
 
 function inspect(records) {
-  const result = { sessionId: '', cwd: '', gitBranch: '', model: '', effort: '', createdAt: 0, prompt: '', lifecycle: '' }
+  const result = { sessionId: '', cwd: '', gitBranch: '', model: '', effort: '', originator: '', sessionSource: '', createdAt: 0, prompt: '', lifecycle: '' }
   for (const record of records) {
     const payload = record?.payload
     if (!payload || typeof payload !== 'object') continue
@@ -72,6 +72,8 @@ function inspect(records) {
       result.sessionId ||= payload.id || payload.session_id || ''
       result.cwd ||= payload.cwd || ''
       result.gitBranch ||= payload.git?.branch || ''
+      result.originator ||= payload.originator || ''
+      result.sessionSource ||= payload.source || ''
       result.createdAt ||= timestamp(payload.timestamp || record.timestamp)
       result.model ||= payload.model || payload.model_provider || ''
     } else if (record.type === 'turn_context') {
@@ -156,10 +158,10 @@ export function createCodexHarness({ codexHome = path.join(os.homedir(), '.codex
           prState: '',
           archived: false,
           sizeBytes: stat.size,
-          source: 'cli',
-          canOpen: SESSION_ID_RE.test(session.sessionId),
+          source: session.originator.startsWith('codex_vscode') ? 'vscode' : session.sessionSource || 'cli',
+          canOpen: SESSION_ID_RE.test(session.sessionId) && session.originator.startsWith('codex_vscode'),
           canArchive: false,
-          ref: { sessionId: session.sessionId, cwd },
+          ref: { sessionId: session.sessionId, cwd, originator: session.originator },
         })
       } catch {
         // Partially written or malformed transcripts must not break a scan.
@@ -170,14 +172,21 @@ export function createCodexHarness({ codexHome = path.join(os.homedir(), '.codex
 
   return {
     id: 'codex-cli',
-    name: 'Codex CLI',
+    name: 'Codex',
     detect: async () => await exists(sessionsDir),
     scanThreads,
     openThread: (ref) => {
       if (!SESSION_ID_RE.test(ref?.sessionId || '')) {
         return { ok: false, error: 'This Codex session does not have a valid thread ID.' }
       }
-      return { ok: true, url: `openai-codex://route/local/${ref.sessionId}` }
+      if (!String(ref?.originator || '').startsWith('codex_vscode')) {
+        return { ok: false, error: 'No verified opener is available for this Codex session origin.' }
+      }
+      return {
+        ok: true,
+        url: `openai-codex://route/local/${ref.sessionId}`,
+        cwd: ref.cwd && path.isAbsolute(ref.cwd) ? ref.cwd : '',
+      }
     },
     newSession: () => ({ ok: false, error: 'Codex has no verified desktop deep link. Start it in a terminal from the project folder.' }),
     setArchived: async () => ({ ok: false, error: 'Codex does not expose a native session archive operation.' }),

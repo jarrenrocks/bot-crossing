@@ -102,13 +102,17 @@ const OPENERS = {
   linux: ['xdg-open'],
 }
 
-function launch(target) {
+function launch(target, context = {}) {
   let [command, ...args] = OPENERS[process.platform] || []
   let options = { stdio: 'ignore', detached: true }
 
   if (String(target).startsWith('openai-codex://')) {
     command = process.env.BOT_CROSSING_CODE_CLI || 'code'
     args = ['--reuse-window', target]
+    options = {
+      ...options,
+      env: { ...process.env, BOT_CROSSING_THREAD_CWD: context.cwd || '' },
+    }
   } else if (process.platform === 'linux' && process.env.WSL_DISTRO_NAME) {
     command = 'explorer.exe'
     args = [target]
@@ -278,7 +282,7 @@ export async function apiMiddleware(req, res, next) {
     if (url.pathname === '/api/open' && req.method === 'POST') {
       const { harness, ref } = await readJsonBody(req)
       const result = harnessOpenThread(harness, ref)
-      if (result.ok) launch(result.url)
+      if (result.ok) launch(result.url, result)
       return send(res, result.ok ? 200 : 400, result)
     }
 

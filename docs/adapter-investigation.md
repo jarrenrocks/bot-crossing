@@ -20,6 +20,7 @@ Read-only inspection of an installed Codex extension found:
 - An optional `~/.codex/session_index.jsonl`, with records containing `id`, `thread_name`, and `updated_at`.
 - Transcript envelopes shaped as `{ timestamp, type, payload }`.
 - `session_meta` provides a session identifier, creation timestamp, working directory, and sometimes Git metadata.
+- `session_meta.originator` identifies the creating client and is used for opener selection; `source` alone is not sufficient.
 - `turn_context` provides current working directory, model, and effort.
 - User messages are `response_item` records whose payload is a `message` with role `user`.
 - Lifecycle records are `event_msg` payloads including `task_started`, `task_complete`, and `turn_aborted`.
@@ -40,7 +41,8 @@ Read-only inspection of an installed Codex extension found:
 
 ## Known limitations
 
-- Sessions with UUID thread IDs open through the installed extension's verified `openai-codex://route/local/<thread-id>` custom-editor URI. The server invokes the VS Code CLI with that URI; `BOT_CROSSING_CODE_CLI` may specify the CLI path when `code` is not on `PATH` (as with a desktop-launched WSL server).
+- Sessions whose metadata identifies a `codex_vscode` origin and a UUID thread ID open through the installed extension's verified `openai-codex://route/local/<thread-id>` custom-editor URI. The server invokes the VS Code CLI with that URI and supplies the session working directory as `BOT_CROSSING_THREAD_CWD`; `BOT_CROSSING_CODE_CLI` may point to a host-specific bridge when `code` is not on `PATH` or VS Code must first be launched (as with a desktop-launched WSL server).
+- Other origins are not forced into VS Code. Their Open action remains disabled until that originating client exposes a verified resume mechanism; this prevents a CLI or standalone-app session from being sent to the wrong interface.
 - Creating sessions is disabled for the same reason.
 - Native archiving is disabled (`canArchive: false`) because no Codex archive field or supported mutation was found. Bot Crossing's own colony archive state remains separate.
 - Running and error states are conservative transcript-based inferences, not direct process state.

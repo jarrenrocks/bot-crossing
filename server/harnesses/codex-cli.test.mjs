@@ -26,7 +26,7 @@ async function fixture(records, { indexed = true } = {}) {
 
 test('normalizes a recent running Codex transcript', async (t) => {
   const data = await fixture([
-    line('session_meta', { id: 'session-1', cwd: '/placeholder', timestamp: '2026-09-04T11:00:00.000Z', git: { branch: 'feature/codex' } }),
+    line('session_meta', { id: 'session-1', cwd: '/placeholder', originator: 'codex_vscode', source: 'exec', timestamp: '2026-09-04T11:00:00.000Z', git: { branch: 'feature/codex' } }),
     line('response_item', { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Build a small adapter.' }] }),
     line('turn_context', { cwd: '/placeholder', model: 'gpt-test', effort: 'high' }),
     line('event_msg', { type: 'task_started' }),
@@ -52,7 +52,8 @@ test('normalizes a recent running Codex transcript', async (t) => {
   assert.equal(thread.canOpen, false)
   assert.equal(thread.canArchive, false)
   assert.equal(thread.sizeBytes, stat.size)
-  assert.deepEqual(thread.ref, { sessionId: 'session-1', cwd: data.project })
+  assert.equal(thread.source, 'vscode')
+  assert.deepEqual(thread.ref, { sessionId: 'session-1', cwd: data.project, originator: 'codex_vscode' })
 })
 
 test('skips malformed records and does not call an old unfinished task running', async (t) => {
@@ -106,9 +107,12 @@ test('handles an absent Codex installation and unsupported actions', async (t) =
 test('builds the verified VS Code route for a valid Codex thread ID', () => {
   const harness = createCodexHarness()
   const sessionId = '12345678-1234-4abc-8def-123456789abc'
-  assert.deepEqual(harness.openThread({ sessionId }), {
+  assert.deepEqual(harness.openThread({ sessionId, originator: 'codex_vscode' }), {
     ok: true,
     url: `openai-codex://route/local/${sessionId}`,
+    cwd: '',
   })
+  assert.equal(harness.openThread({ sessionId, cwd: '/tmp/project', originator: 'codex_vscode' }).cwd, '/tmp/project')
   assert.equal(harness.openThread({ sessionId: 'not-a-session' }).ok, false)
+  assert.equal(harness.openThread({ sessionId, originator: 'codex_cli' }).ok, false)
 })
