@@ -820,6 +820,82 @@ body {
   scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
 }
 
+.side .hidden-block {
+  flex: none;
+  border-top: 1px solid var(--line);
+}
+
+.side .hidden-block[hidden] {
+  display: none;
+}
+
+.side .hidden-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin: 0;
+  padding: 11px 15px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--dim);
+  font: inherit;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-align: left;
+  cursor: pointer;
+}
+
+.side .hidden-toggle:hover {
+  color: var(--text);
+}
+
+.side .hidden-toggle::after {
+  content: '';
+  width: 0;
+  height: 0;
+  border-left: 4px solid currentColor;
+  border-top: 3px solid transparent;
+  border-bottom: 3px solid transparent;
+  opacity: 0.7;
+  transition: transform 140ms ease;
+}
+
+.side .hidden-toggle[aria-expanded='true']::after {
+  transform: rotate(90deg);
+}
+
+.side .hidden-projects {
+  padding: 0 9px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.side .hidden-projects[hidden] {
+  display: none;
+}
+
+.side .hidden-repo {
+  cursor: default;
+}
+
+.side .hidden-repo:hover {
+  background: transparent;
+}
+
+.side .hidden-repo .n {
+  opacity: 0.72;
+}
+
+.side .show-repo {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+  flex: none;
+}
+
 .side .repo {
   display: flex;
   align-items: center;
