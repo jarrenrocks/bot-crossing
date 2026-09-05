@@ -56,7 +56,7 @@ function userDataDir() {
 
 const STATE_DB = path.join(userDataDir(), 'User', 'globalStorage', 'state.vscdb')
 
-/** `/Users/greg/nph` → `Users-greg-nph`, which is how ~/.cursor/projects is keyed. */
+/** `/Users/you/code` → `Users-you-code`, which is how ~/.cursor/projects is keyed. */
 function projectSlug(absPath) {
   return String(absPath || '')
     .replace(/^[\\/]+/, '')
@@ -704,7 +704,7 @@ function openThread(ref) {
 /**
  * Prefill a new agent chat, routed to a window whose folder name matches.
  * Cursor's deeplink matches on basename, not the full path — two checkouts
- * called `nph` would collide, which is the same ambiguity the colony already
+ * called `foo` would collide, which is the same ambiguity the colony already
  * has to disambiguate on the map.
  */
 function newSession(dir) {
