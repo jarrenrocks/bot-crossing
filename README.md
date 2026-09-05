@@ -6,8 +6,9 @@ Every coding-agent thread on this Mac is a little astronaut. They walk out of th
 a plot for their repo, and build something. When one needs you it stops and holds a `?` over
 its head; click it and the thread opens back in whichever harness it came from.
 
-It reads the harness's own files, on your own machine. Nothing is uploaded, there is no
-account, and the only thing it ever writes back is a single archive flag.
+It reads the harness's own files, on your own machine. Nothing is uploaded and there is no
+account. It writes its own colony state and harness integration state; the complete list is
+in [Keeping it local](#keeping-it-local).
 
 > **Status:** published as-is. I built this for myself and cannot promise to maintain it —
 > issues and PRs are welcome but may go unanswered, and forking is an entirely reasonable
@@ -24,11 +25,9 @@ second process. For a built version, `npm start` (build + serve) or `npm run ser
 `dist/` already exists. Binds to `127.0.0.1` by default, and answers only its own page — see
 [Keeping it local](#keeping-it-local).
 
-**macOS, Linux and Windows.** Opening a thread, revealing a folder and starting a new session
-all go through a `harness://` deep link handed to the OS opener — `open(1)` on macOS,
-`xdg-open` on Linux, ShellExecute on Windows. The scanning half was portable already. Note that
-the deep link needs a desktop app registered for that scheme, so on Linux the folder buttons
-work while opening a thread has nothing to reach yet.
+**macOS, Linux and Windows.** Reveal and deep-link actions use `open(1)` on macOS, `xdg-open`
+on Linux, and ShellExecute on Windows. A harness may instead open through its own CLI: Cursor
+does this so it can route to the right workspace and agent thread.
 
 ## Which harnesses work
 
@@ -42,7 +41,7 @@ somebody writing that adapter.
 | [Codex CLI](https://developers.openai.com/codex/cli) (OpenAI) | ⬜ Not yet — transcripts found at `~/.codex/sessions/`, [notes here](server/harnesses/README.md#starting-points) |
 | [OpenCode](https://opencode.ai) | ⬜ Not yet |
 | [Antigravity CLI](https://antigravity.google) (Google) | ⬜ Not yet — the successor to Gemini CLI, which Google stopped serving individual accounts on 18 June 2026 |
-| [Cursor](https://cursor.com) (`cursor-agent`) | ⬜ Not yet |
+| **[Cursor](https://cursor.com)** (IDE + `cursor-agent`) | ✅ **Supported** — composer chats via `state.vscdb`, transcripts under `~/.cursor/projects`, archive flag, Open jumps to that composer |
 | [Amp](https://ampcode.com) (Sourcegraph) | ⬜ Not yet |
 | [Aider](https://aider.chat) | ⬜ Not yet |
 | [Goose](https://block.github.io/goose/) (Block) | ⬜ Not yet |
@@ -596,11 +595,19 @@ What it touches on disk, in full:
 | | |
 | --- | --- |
 | Reads | Your harness's own session records and transcripts |
-| Writes | `data/colony.json`, and **one** `isArchived` field per archived thread |
+| Writes | `data/colony.json`; one harness archive flag per archived thread; for Cursor Open, the `bot-crossing.cursor-open` helper extension and mode-0600 request/ack files under `~/.cursor/` |
 | Sends | Nothing. No network calls, no telemetry, no account |
 
 `data/colony.json` holds the names and paths of the repos you work in, so it is gitignored —
 worth knowing before you copy one into an issue.
+
+Cursor has no public deep link for an existing local agent thread. On first use of Cursor
+Open, Bot Crossing builds a four-file helper VSIX in the OS temporary directory, installs it
+through Cursor's CLI, and deletes the VSIX. The helper validates a UUID, restricts the request
+to the exact workspace path, calls Cursor's internal `composer.focusComposer` command, and
+acknowledges the request. It makes no network calls and can be removed like any Cursor
+extension. A newly installed helper may require one Cursor window reload before the first
+thread jump.
 
 ## Layout
 
@@ -609,6 +616,7 @@ server/
   harnesses/   one adapter per agent harness — README.md is the contract
     index.mjs    the registry: add your harness to the list here
     claude-code.mjs
+    cursor.mjs
   lib/         filesystem helpers the adapters share
   scan.mjs     harness-agnostic: asks every detected harness, merges, sorts
   api.mjs      /api/threads, /api/harnesses, /api/state, /api/open, /api/archive,

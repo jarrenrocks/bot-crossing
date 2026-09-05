@@ -31,7 +31,7 @@ written down here.
 
 ## What is most worth contributing
 
-**Harness adapters, by a wide margin.** Right now Bot Crossing only reads Claude Code. The
+**Harness adapters, by a wide margin.** Right now Bot Crossing reads Claude Code and Cursor. The
 whole point of the seam in `server/harnesses/` is that adding Codex CLI, OpenCode, Antigravity,
 Amp, or anything else should be one new file and one line in a registry.
 
