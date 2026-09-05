@@ -1,5 +1,5 @@
 /**
- * Filesystem helpers shared by every harness adapter.
+ * Filesystem helpers shared by the harness adapters and the server.
  *
  * Nothing in here knows about a particular harness — an adapter is free to ignore the lot
  * and read its data however it likes. See `server/harnesses/README.md` for the contract.
@@ -63,6 +63,29 @@ export async function exists(p) {
   } catch {
     return false
   }
+}
+
+/**
+ * Where an executable is, as an absolute path, or null. PATH first, then `extraDirs` — the
+ * places an installer puts a binary that a server started with a thin PATH (an IDE launcher, a
+ * service unit) would not see. Candidates are resolved rather than joined: the caller may spawn
+ * from a different working directory than this check ran in, and a relative PATH entry would
+ * then name two different files. X_OK alone passes for a directory, hence the stat.
+ */
+export async function findExecutable(name, extraDirs = []) {
+  if (typeof name !== 'string' || !name) return null
+  const explicit = name.includes('/') || name.includes(path.sep)
+  const onPath = (process.env.PATH || '').split(path.delimiter).filter(Boolean)
+  for (const dir of explicit ? ['.'] : [...onPath, ...extraDirs]) {
+    const candidate = path.resolve(dir, name)
+    try {
+      await fsp.access(candidate, fsp.constants.X_OK)
+      if ((await fsp.stat(candidate)).isFile()) return candidate
+    } catch {
+      /* not here */
+    }
+  }
+  return null
 }
 
 export const num = (v) => {

@@ -47,9 +47,10 @@ than have you contort an adapter around it.
 
 Also useful:
 
-- **Linux and Windows support.** The scanning half is portable; the opening half is not. Every
-  "open this thread", "reveal this folder" and "start a session here" path goes through macOS's
-  `open(1)` in `server/api.mjs`. That is the whole blocker.
+- **Platform edges.** macOS, Linux and Windows all run now, but each was verified on one
+  machine. On Linux in particular, the terminal that opens a CLI-only thread is chosen from a
+  table in `server/lib/xdg.mjs` — a terminal that is not in it, or a desktop that names its
+  terminal some other way, is a small and welcome PR.
 - **Bug fixes**, especially anything where the colony misrepresents what a thread is actually
   doing. That is the one thing the project has to get right.
 - **Performance**, if you can measure it. See the Performance section of the README for the kind

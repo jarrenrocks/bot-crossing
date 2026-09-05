@@ -18,8 +18,8 @@ export default {
   name: 'My Harness',            // what a human sees in the UI
   detect,                        // () => Promise<boolean>
   scanThreads,                   // () => Promise<Thread[]>
-  openThread,                    // (ref) => { ok, url } | { ok: false, error }
-  newSession,                    // (dir) => { ok, url } | { ok: false, error }
+  openThread,                    // (ref) => { ok, url, command? } | { ok: false, error }   (may be async)
+  newSession,                    // (dir) => { ok, url, command? } | { ok: false, error }   (may be async)
   setArchived,                   // (ref, archived) => Promise<{ ok, error? }>
   appStartedAt,                  // optional: () => Promise<number>
 }
@@ -50,10 +50,29 @@ broken adapter costs you its own threads and nothing else. Prefer that over retu
 
 Return `{ ok: true, url }` and the server hands that URL to the OS opener. `openThread` gets
 the `ref` from the thread it belongs to; `newSession` gets an absolute directory that the
-server has already checked still exists.
+server has already checked still exists. Either may return a Promise.
 
-If your harness has no deep link, return `{ ok: false, error: '…' }` and say why — the UI
-shows the message rather than pretending the click worked.
+You can also offer the same action as a terminal command, alongside or instead of the URL:
+
+```js
+{
+  ok: true,
+  url: 'my-harness://resume/1234',
+  command: { argv: ['/usr/bin/my-harness', 'resume', '1234'], cwd: '/repo' },
+}
+```
+
+`command` is used when nothing on the machine answers the URL's scheme — today that means a
+Linux box where the harness's desktop app is not installed; macOS and Windows always hand the
+URL to the opener, so there a command-only harness gets an error back rather than a window.
+The server runs `argv` in a new terminal window with `cwd` as the working directory, after
+checking `cwd` the same way it checks any folder the page names. Build `argv` only from
+literals, ids that passed a strict pattern check, and a binary path you resolved yourself —
+never copy a `ref` field in verbatim, since a value that starts with `-` becomes a flag to
+your CLI.
+
+If your harness has neither, return `{ ok: false, error: '…' }` and say why — the UI shows the
+message rather than pretending the click worked.
 
 ### `setArchived(ref, archived)`
 
@@ -134,7 +153,8 @@ Verified on a real machine:
 
 - **Claude Code** — desktop records in
   `~/Library/Application Support/Claude/claude-code-sessions/<account>/<org>/local_*.json`
-  (`%APPDATA%\Claude\claude-code-sessions\…` on Windows); CLI transcripts in
+  (`%APPDATA%\Claude\claude-code-sessions\…` on Windows, `~/.config/Claude/claude-code-sessions/…`
+  on Linux); CLI transcripts in
   `~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl`; live processes in
   `~/.claude/sessions/*.json`. Implemented in `claude-code.mjs`.
 - **Codex CLI** — transcripts in `~/.codex/sessions/YYYY/MM/DD/rollout-<iso>-<uuid>.jsonl`,

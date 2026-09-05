@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "A 3D colony sim where every coding-agent thread on your Mac is a little astronaut building something.",
+  "description": "A 3D colony sim where every coding-agent thread on your machine is a little astronaut building something.",
   "license": "MIT",
   "author": "Jarren Rocks",
   "homepage": "https://botcrossing.com",
