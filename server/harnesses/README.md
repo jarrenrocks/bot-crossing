@@ -18,7 +18,7 @@ export default {
   name: 'My Harness',            // what a human sees in the UI
   detect,                        // () => Promise<boolean>
   scanThreads,                   // () => Promise<Thread[]>
-  openThread,                    // (ref) => { ok, url } | { ok: false, error }
+  openThread,                    // (ref) => { ok, url? } | { ok: false, error }  (may be async)
   newSession,                    // (dir) => { ok, url } | { ok: false, error }
   setArchived,                   // (ref, archived) => Promise<{ ok, error? }>
   appStartedAt,                  // optional: () => Promise<number>
@@ -52,8 +52,12 @@ Return `{ ok: true, url }` and the server hands that URL to the OS opener. `open
 the `ref` from the thread it belongs to; `newSession` gets an absolute directory that the
 server has already checked still exists.
 
-If your harness has no deep link, return `{ ok: false, error: '…' }` and say why — the UI
-shows the message rather than pretending the click worked.
+If the adapter has already done the open itself (spawned the harness's CLI, fired a
+keybinding, …), return `{ ok: true }` with no `url` — the server will not call `launch`.
+Either form may be async; the API awaits it.
+
+If your harness has no way to open a thread, return `{ ok: false, error: '…' }` and say why —
+the UI shows the message rather than pretending the click worked.
 
 ### `setArchived(ref, archived)`
 
@@ -116,8 +120,11 @@ Do not put a file handle, a class instance, or a secret in it.
 
 ## Ground rules
 
-- **Read-only by default.** The one exception in the whole project is the archive flag. A
-  harness's transcripts are somebody's actual work; the colony is a viewer, not an editor.
+- **Read-only by default.** A harness's transcripts are somebody's actual work; the colony is
+  a viewer, not an editor. The archive flag is the only write in the general case. Cursor is
+  the one adapter that needs more — it has no deep link to an existing thread, so Open
+  installs a small helper extension through Cursor's own CLI and talks to it through a
+  mode-0600 request file. Anything like that has to be disclosed in the top-level README.
 - **Never block the scan.** It runs on a poll. Cache anything expensive against file mtime —
   see `transcriptMeta` in `claude-code.mjs`, which is what keeps a 12MB transcript from being
   reparsed every few seconds.
@@ -137,6 +144,14 @@ Verified on a real machine:
   (`%APPDATA%\Claude\claude-code-sessions\…` on Windows); CLI transcripts in
   `~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl`; live processes in
   `~/.claude/sessions/*.json`. Implemented in `claude-code.mjs`.
+- **Cursor** — composer index in Cursor's global `state.vscdb` (`composerHeaders` table:
+  title, workspace `fsPath`, `hasUnreadMessages`, `unfinishedRunAt`, `isArchived`), plus
+  transcripts at `~/.cursor/projects/<slug>/agent-transcripts/<uuid>/<uuid>.jsonl`.
+  Node 22.13's built-in SQLite binding reads the live store in read-only mode, so Windows does
+  not need `sqlite3.exe`; if headers are temporarily unavailable, the adapter reuses its last
+  good snapshot rather than exposing unidentifiable subagents. Open focuses the workspace with
+  the Cursor CLI, then a tiny helper installed through that CLI runs `composer.focusComposer`
+  for the chat id and acknowledges it. Implemented in `cursor.mjs`.
 - **Codex CLI** — transcripts in `~/.codex/sessions/YYYY/MM/DD/rollout-<iso>-<uuid>.jsonl`,
   with records shaped `{ timestamp, type, payload }`, and what looks like an index at
   `~/.codex/session_index.jsonl`. Not implemented yet.

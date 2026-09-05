@@ -80,7 +80,6 @@ async function writeState(next) {
 }
 
 /**
-/**
  * Hand a `harness://…` deep link, or a folder, to whatever opens things on this OS. The
  * opener gets an argument list, never a shell string.
  *
@@ -91,6 +90,9 @@ async function writeState(next) {
  * <url>` silently drops any URL that carries a query string, so `code/new?folder=…` never
  * arrived, and `cmd /c start` parses its own argument line, where the `%3A%5C` escapes in that
  * same link are exactly what it expands.
+ *
+ * An adapter may omit `url` after opening the thread itself (the Cursor adapter does this).
+ * `launch` is then a no-op.
  *
  * The spawn is guarded because the opener may simply not be installed — a headless Linux box
  * has no `xdg-open` — and an unhandled `error` event on a child process takes the whole server
@@ -267,8 +269,8 @@ export async function apiMiddleware(req, res, next) {
 
     if (url.pathname === '/api/open' && req.method === 'POST') {
       const { harness, ref } = await readJsonBody(req)
-      const result = harnessOpenThread(harness, ref)
-      if (result.ok) launch(result.url)
+      const result = await Promise.resolve(harnessOpenThread(harness, ref))
+      if (result.ok && result.url) launch(result.url)
       return send(res, result.ok ? 200 : 400, result)
     }
 
@@ -281,8 +283,8 @@ export async function apiMiddleware(req, res, next) {
         launch(dir)
         return send(res, 200, { ok: true })
       }
-      const result = harnessNewSession(harness || (await defaultHarness()), dir)
-      if (result.ok) launch(result.url)
+      const result = await Promise.resolve(harnessNewSession(harness || (await defaultHarness()), dir))
+      if (result.ok && result.url) launch(result.url)
       return send(res, result.ok ? 200 : 400, result)
     }
 
